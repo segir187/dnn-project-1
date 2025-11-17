@@ -1,5 +1,11 @@
 from torch.utils.data import Dataset, DataLoader
 
+DEFAULT_AUG = {
+    "p_hflip": 0.5,
+    "p_vflip": 0.5,
+    "p_rot90": 0.75  # probability to apply a non-zero 90° rotation
+}
+
 class CountsDataset(Dataset):
     """
     Preloads labels and images once in __init__:
@@ -7,10 +13,19 @@ class CountsDataset(Dataset):
       - images: tensor [N, 28*28] (float32), binary in {0.0, 1.0}, flattened
     No transformations.
     """
-    def __init__(self, data_dir="data", labels_csv="data/labels.csv", indices=None, img_size=(28, 28)):
+    def __init__(self, data_dir="data", labels_csv="data/labels.csv", indices=None, augment=None):
         self.data_dir = Path(data_dir)
-        self.img_size = tuple(img_size)
+        self.img_size = (28, 28)
         self.label_cols = ['squares','circles','up','right','down','left']
+
+        # Parse augment config: None/False disables; True uses defaults; dict overrides defaults.
+        if not augment:
+            self.aug = None
+        elif augment is True:
+            self.aug = dict(self.DEFAULT_AUG)
+        else:
+            self.aug = dict(self.DEFAULT_AUG)
+            self.aug.update(augment)
 
         # Read CSV rows
         rows = []
@@ -46,16 +61,30 @@ class CountsDataset(Dataset):
         return self.images.shape[0]
 
     def __getitem__(self, idx):
-        # Returns: (image_flat_784_float32, counts_float32_6)
-        return self.images[idx], self.counts[idx]
+        x = self.images[idx]
+        counts6 = self.counts[idx]
+
+        if self.aug:
+            # Sample geom decisions
+            do_h = torch.rand(()) < self.aug["p_hflip"]
+            do_v = torch.rand(()) < self.aug["p_vflip"]
+            if torch.rand(()) < self.aug["p_rot90"]:
+                k_rot = int(torch.randint(1, 4, (1,)).item())  # 1,2,3
+            else:
+                k_rot = 0
+            # Apply (expects helper funcs defined elsewhere)
+            x, counts6 = apply_geom(x, counts6, do_h=bool(do_h), do_v=bool(do_v), k_rot=k_rot)
+
+        cls135 = encode_counts_to_class135(counts6.to(torch.int64))
+        return x, counts6, cls135
 
 # Example split and loaders
 labels_csv = "data/labels.csv"
 train_indices = list(range(0, 9000))
 val_indices   = list(range(9000, 10000))
 
-train_ds = CountsDataset(data_dir="data", labels_csv=labels_csv, indices=train_indices)
-val_ds   = CountsDataset(data_dir="data", labels_csv=labels_csv, indices=val_indices)
+train_ds = CountsDataset(data_dir="data", labels_csv=labels_csv, indices=train_indices, augment=True)
+val_ds   = CountsDataset(data_dir="data", labels_csv=labels_csv, indices=val_indices, augment=None)
 
 # Use <=2 workers on this system; pin memory only if CUDA is available
 use_cuda = torch.cuda.is_available()
