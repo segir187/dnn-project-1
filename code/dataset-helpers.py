@@ -13,11 +13,10 @@ def _to_flat(x):
 # ---------- Geometric image transforms (flattened input) ----------
 def hflip(x):
     """
-    Horizontal flip (left-right) using stride-reversal slice (view when possible).
-    x: (784,) or (N,784)
+    Horizontal flip (left-right).
     """
     g = _to_grid(x)
-    g = g[..., :, :, ::-1]          # reverse width
+    g = torch.flip(g, dims=(-1,))          # flip width
     return _to_flat(g)
 
 def vflip(x):
@@ -25,21 +24,20 @@ def vflip(x):
     Vertical flip (top-bottom).
     """
     g = _to_grid(x)
-    g = g[..., :, ::-1, :]          # reverse height
+    g = torch.flip(g, dims=(-2,))          # flip height
     return _to_flat(g)
 
 def rot90(x, k=1):
     """
     Rotate 90° clockwise k times (k in {0,1,2,3}).
-    Implemented as transpose + vertical flip; uses slices (no explicit clone).
+    Implemented as transpose + flip (no negative-step slicing).
     """
     k %= 4
     if k == 0:
         return x
     g = _to_grid(x)
     for _ in range(k):
-        # CW: transpose then flip rows (height)
-        g = g.transpose(-2, -1)[..., ::-1, :]
+        g = torch.flip(g.transpose(-2, -1), dims=(-2,))  # CW: transpose then flip rows
     return _to_flat(g)
 
 # ---------- Count label remaps ----------
@@ -48,10 +46,6 @@ IDX_HFLIP = torch.tensor([0, 1, 2, 5, 4, 3])  # right<->left
 IDX_VFLIP = torch.tensor([0, 1, 4, 3, 2, 5])  # up<->down
 
 def remap_hflip(counts):
-    """
-    counts: (6,) or (N,6)
-    Returns reordered view where possible (advanced indexing yields new tensor).
-    """
     return counts[..., IDX_HFLIP]
 
 def remap_vflip(counts):
@@ -60,8 +54,6 @@ def remap_vflip(counts):
 def remap_rot90(counts, k=1):
     """
     Rotate orientation counts clockwise k times: up->right->down->left.
-    k in {1..3}. Non-oriented (0,1) unchanged.
-    In-place modification avoided; returns new tensor.
     """
     head = counts[..., :2]
     orient = counts[..., 2:6]
@@ -92,7 +84,6 @@ def encode_counts_to_class135(counts: torch.Tensor) -> torch.Tensor:
     # counts shape (6,), exactly two non-zero entries
     nz = torch.nonzero(counts > 0, as_tuple=False).flatten()
     a, b = nz.sort().values.tolist()
-    # row: unordered pair (a,b) among 15 pairs
-    row = a * (11 - a) // 2 + (b - a - 1)   # precomputed combinatorial index
+    row = a * (11 - a) // 2 + (b - a - 1)   # unordered pair index
     col = int(counts[a].item()) - 1         # 0..8
     return torch.tensor(row * 9 + col, dtype=torch.long)
