@@ -15,16 +15,16 @@ class CountsDataset(Dataset):
     """
     def __init__(self, data_dir="data", labels_csv="data/labels.csv", indices=None, augment=None):
         self.data_dir = Path(data_dir)
-        self.img_size = (28, 28)
+        self.img_size = (IMG_H, IMG_W) # (28, 28)
         self.label_cols = ['squares','circles','up','right','down','left']
 
         # Parse augment config: None/False disables; True uses defaults; dict overrides defaults.
         if not augment:
             self.aug = None
         elif augment is True:
-            self.aug = dict(self.DEFAULT_AUG)
+            self.aug = dict(DEFAULT_AUG)
         else:
-            self.aug = dict(self.DEFAULT_AUG)
+            self.aug = dict(DEFAULT_AUG)
             self.aug.update(augment)
 
         # Read CSV rows
@@ -97,6 +97,6 @@ val_loader   = DataLoader(val_ds,   batch_size=1000, shuffle=False,
                           num_workers=num_workers, pin_memory=pin_memory)
 
 # quick sanity check
-batch_x, batch_counts = next(iter(train_loader))
-print("train batch x:", batch_x.shape, batch_x.dtype, "| counts:", batch_counts.shape, batch_counts.dtype)
+batch_x, batch_counts, batch_135s = next(iter(train_loader))
+print("train batch x:", batch_x.shape, batch_x.dtype, "| counts:", batch_counts.shape, batch_counts.dtype, "| classes:", batch_135s.shape, batch_135s.dtype)
 print("example row:", batch_x[0])
