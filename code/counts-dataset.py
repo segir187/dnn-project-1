@@ -75,6 +75,7 @@ class CountsDataset(Dataset):
             # Apply (expects helper funcs defined elsewhere)
             x, counts6 = apply_geom(x, counts6, do_h=bool(do_h), do_v=bool(do_v), k_rot=k_rot)
 
+        x = x.view(1, IMG_H, IMG_W)
         cls135 = encode_counts_to_class135(counts6.to(torch.int64))
         return x, counts6, cls135
 
