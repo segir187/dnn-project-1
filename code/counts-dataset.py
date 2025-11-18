@@ -11,7 +11,10 @@ class CountsDataset(Dataset):
     Preloads labels and images once in __init__:
       - counts: tensor [N, 6] (float32)
       - images: tensor [N, 28*28] (float32), binary in {0.0, 1.0}, flattened
-    No transformations.
+    Returns:
+      - x: (1, 28, 28) float32 in {0,1}
+      - counts6: (6,) float32
+      - cls135: () long (0..134)
     """
     def __init__(self, data_dir="data", labels_csv="data/labels.csv", indices=None, augment=None):
         self.data_dir = Path(data_dir)
@@ -65,14 +68,9 @@ class CountsDataset(Dataset):
         counts6 = self.counts[idx]
 
         if self.aug:
-            # Sample geom decisions
-            do_h = torch.rand(()) < self.aug["p_hflip"]
-            do_v = torch.rand(()) < self.aug["p_vflip"]
-            if torch.rand(()) < self.aug["p_rot90"]:
-                k_rot = int(torch.randint(1, 4, (1,)).item())  # 1,2,3
-            else:
-                k_rot = 0
-            # Apply (expects helper funcs defined elsewhere)
+            do_h = bool(torch.rand(()) < self.aug["p_hflip"])
+            do_v = bool(torch.rand(()) < self.aug["p_vflip"])
+            k_rot = int(torch.randint(1, 4, (1,)).item()) if (torch.rand(()) < self.aug["p_rot90"]) else 0
             x, counts6 = apply_geom(x, counts6, do_h=bool(do_h), do_v=bool(do_v), k_rot=k_rot)
 
         x = x.view(1, IMG_H, IMG_W)
