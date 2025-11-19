@@ -35,7 +35,7 @@ class MultiTaskTrainer:
     ) -> None:
         lambda_cls = float(do_cls)
         optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-        log_freq = 100
+        log_freq = 140
         NLL = nn.NLLLoss()
         SL1 = nn.SmoothL1Loss()
 
@@ -58,11 +58,11 @@ class MultiTaskTrainer:
                 running_loss += loss.item()
                 if i % log_freq == log_freq - 1:
                     running_loss /= log_freq
-                    print(f"[epoch {epoch + 1}, batch {i + 1:5d}] loss: {running_loss:.3f}")
+                    print(f"[epoch {epoch + 1:3d}, batch {i + 1:3d}] loss: {running_loss:.3f}")
                     running_loss = 0.0
 
             acc, rmse = self.test(net)
-            print(f"Metrics after epoch {epoch}: Top1 {acc}, RMSE {rmse}")
+            print(f"Metrics after epoch {epoch + 1:3d}: Top1 {acc:2.1f}, RMSE {rmse:2.5f}")
     
     def test(self, net: nn.Module) -> (float, float):
         net.eval()
