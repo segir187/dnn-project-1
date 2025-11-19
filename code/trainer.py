@@ -33,11 +33,9 @@ class MultiTaskTrainer:
         lambda_cnt: float = 1.0,
         do_cls: bool = True,
     ) -> None:
-        lambda_cls = float(do_cls)
         optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+        LossCalc = MultiTaskLoss(lambda_cnt=lambda_cnt, do_cls=do_cls)
         log_freq = 140
-        NLL = nn.NLLLoss()
-        SL1 = nn.SmoothL1Loss()
 
         net.to(self.device)
         for epoch in range(num_epochs):
@@ -49,9 +47,7 @@ class MultiTaskTrainer:
 
                 optimizer.zero_grad()
                 log_probs, counts_pred = net(inputs)
-                loss_cls = NLL(log_probs, cls135)
-                loss_cnt = SL1(counts_pred, counts)
-                loss = lambda_cls * loss_cls + lambda_cnt * loss_cnt
+                loss = LossCalc((log_probs, counts_pred), (cls135, counts))
                 loss.backward()
                 optimizer.step()
 
