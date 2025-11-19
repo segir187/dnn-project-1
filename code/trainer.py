@@ -35,12 +35,14 @@ class MultiTaskTrainer:
     ) -> None:
         optimizer = torch.optim.Adam(net.parameters(), lr=lr)
         LossCalc = MultiTaskLoss(lambda_cnt=lambda_cnt, do_cls=do_cls)
+        stopper = EarlyStopping(mode="min", restore_best=True)
         log_freq = 140
 
         net.to(self.device)
         for epoch in range(num_epochs):
             net.train()
-            running_loss = 0.0
+            train_loss_sum = 0.0
+            seen = 0
 
             for i, data in enumerate(self.trainloader):
                 inputs, counts, cls135 = [t.to(self.device, non_blocking=True) for t in data]
@@ -51,31 +53,48 @@ class MultiTaskTrainer:
                 loss.backward()
                 optimizer.step()
 
-                running_loss += loss.item()
-                if i % log_freq == log_freq - 1:
-                    running_loss /= log_freq
-                    print(f"[epoch {epoch + 1:3d}, batch {i + 1:3d}] loss: {running_loss:.3f}")
-                    running_loss = 0.0
+                bs = inputs.size(0)
+                train_loss_sum += float(loss.item()) * bs
+                seen += bs
 
-            acc, rmse = self.test(net)
-            print(f"Metrics after epoch {epoch + 1:3d}: Top1 {acc:2.1f}, RMSE {rmse:2.5f}")
+            metrics = self.test(net, LossCalc)
+            acc = metrics['top1_acc']
+            rmse = metrics['rmse']
+            val_loss = metrics['loss']
+            train_loss = train_loss_sum / seen
+            print(f"Epoch {epoch + 1:3d} | Train loss {train_loss:.4f} | Val loss {acc:.4f} | Acc {acc:2.1f} | RMSE {rmse:.4f}")
+
+            if stopper.step(acc, net, epoch):
+                print(f"Early stopping triggered at epoch {epoch + 1}. Restoring best model from epoch {stopper.best_epoch + 1}.")
+                stopper.restore(net)
+                break
     
-    def test(self, net: nn.Module) -> (float, float):
+    def test(self, net: nn.Module, LossCalc: MultiTaskLoss | None = None) -> dict:
         net.eval()
         correct = 0
         total = 0
-        rmse_sum = 0.0
+        sse = 0.0
+        loss_sum = 0.0
 
         with torch.no_grad():
             for data in self.testloader:
                 inputs, counts, cls135 = [t.to(self.device, non_blocking=True) for t in data]
                 log_probs, counts_pred = net(inputs)
 
-                predicted = log_probs.argmax(dim=1)
-                total += cls135.size(0)
-                correct += (predicted == cls135).sum().item()
-                rmse_sum += (counts_pred - counts).pow(2).sum().item()
+                bs = cls135.size(0)
+                total += bs
+                if LossCalc is not None:
+                    loss = LossCalc((log_probs, counts_pred), (cls135, counts))
+                    loss_sum += loss * bs
 
-        acc = 100.0 * correct / total
-        rmse = np.sqrt(rmse_sum / (total * 6)) # global RMSE over 6 targets
-        return acc, rmse
+                predicted = log_probs.argmax(dim=1)
+                correct += (predicted == cls135).sum().item()
+                sse += (counts_pred - counts).pow(2).sum().item()
+
+        result = {}
+        result['top1_acc'] = 100.0 * correct / total
+        result['rmse'] = np.sqrt(sse / (total * 6)) # global RMSE over 6 targets
+        if LossCalc is not None:
+            result['loss'] = loss_sum / total
+
+        return result
