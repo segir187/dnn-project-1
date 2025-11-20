@@ -37,7 +37,7 @@ def rot90(x, k=1):
         return x
     g = _to_grid(x)
     for _ in range(k):
-        g = torch.flip(g.transpose(-2, -1), dims=(-2,))  # CW: transpose then flip rows
+        g = torch.flip(g.transpose(-2, -1), dims=(-1,))  # CW: transpose then flip columns
     return _to_flat(g)
 
 # ---------- Count label remaps ----------
@@ -79,11 +79,3 @@ def apply_geom(x_flat, counts6,
         x_flat = vflip(x_flat)
         counts6 = remap_vflip(counts6)
     return x_flat, counts6
-
-def encode_counts_to_class135(counts: torch.Tensor) -> torch.Tensor:
-    # counts shape (6,), exactly two non-zero entries
-    nz = torch.nonzero(counts > 0, as_tuple=False).flatten()
-    a, b = nz.sort().values.tolist()
-    row = a * (11 - a) // 2 + (b - a - 1)   # unordered pair index
-    col = int(counts[a].item()) - 1         # 0..8
-    return torch.tensor(row * 9 + col, dtype=torch.long)
