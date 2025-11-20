@@ -67,11 +67,13 @@ class MultiTaskTrainer:
                 print_metrics(stopper.best_epoch, stopper.best_metrics)
                 break
 
-    def test(self, net: nn.Module, LossCalc: MultiTaskLoss | None = None) -> dict:
+    def test(self, net: nn.Module, LossCalc: MultiTaskLoss) -> dict:
         net.eval()
-        correct = 0
-        total = 0
+        num_classes = 135
+
+        cm = torch.zeros(num_classes, num_classes, dtype=torch.int64)
         sse = 0.0
+        abs_err_sum = 0.0
         loss_sum = 0.0
 
         with torch.no_grad():
@@ -80,19 +82,25 @@ class MultiTaskTrainer:
                 log_probs, counts_pred = net(inputs)
 
                 bs = cls135.size(0)
-                total += bs
-                if LossCalc is not None:
-                    loss = LossCalc((log_probs, counts_pred), (cls135, counts))
-                    loss_sum += loss * bs
+                loss = LossCalc((log_probs, counts_pred), (cls135, counts))
+                loss_sum += loss * bs
 
+                # Update confusion matrix
                 predicted = log_probs.argmax(dim=1)
-                correct += (predicted == cls135).sum().item()
-                sse += (counts_pred - counts).pow(2).sum().item()
+                flat_idx = cls135 * num_classes + predicted
+                cm += torch.bincount(flat_idx, minlength=num_classes * num_classes).reshape(num_classes, num_classes).cpu()
 
-        result = {}
-        result['top1_acc'] = 100.0 * correct / total
-        result['rmse'] = np.sqrt(sse / (total * 6)) # global RMSE over 6 targets
-        if LossCalc is not None:
-            result['val_loss'] = loss_sum / total
+                err = counts_pred - counts
+                sse += err.pow(2).sum().item()
+                abs_err_sum += err.abs().sum().item()
+
+        total = cm.sum().item()
+        result = {
+            'top1_acc': 100.0 * cm.diag().sum().item() / total,
+            'f1_macro': macro_f1(cm),
+            'rmse': np.sqrt(sse / (total * 6)),
+            'mae': abs_err_sum / (total * 6),
+            'val_loss': loss_sum / total,
+        }
 
         return result
