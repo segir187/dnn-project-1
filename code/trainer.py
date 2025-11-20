@@ -62,10 +62,12 @@ class MultiTaskTrainer:
             print_metrics(epoch, metrics)
 
             if stopper.step(metrics, net, epoch):
-                print(f"Early stopping triggered at epoch {epoch + 1}. Restoring best model from epoch {stopper.best_epoch + 1}.")
-                stopper.restore(net)
-                print_metrics(stopper.best_epoch, stopper.best_metrics)
+                print(f"Early stopping triggered at epoch {epoch + 1}.")
                 break
+
+        print(f"Restoring best model from epoch {stopper.best_epoch + 1}.")
+        stopper.restore(net)
+        print_metrics(stopper.best_epoch, stopper.best_metrics)
 
     def test(self, net: nn.Module, LossCalc: MultiTaskLoss) -> dict:
         net.eval()
