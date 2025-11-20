@@ -58,17 +58,15 @@ class MultiTaskTrainer:
                 seen += bs
 
             metrics = self.test(net, LossCalc)
-            acc = metrics['top1_acc']
-            rmse = metrics['rmse']
-            val_loss = metrics['loss']
-            train_loss = train_loss_sum / seen
-            print(f"Epoch {epoch + 1:3d} | Train loss {train_loss:.4f} | Val loss {acc:.4f} | Acc {acc:2.1f} | RMSE {rmse:.4f}")
+            metrics['train_loss'] = train_loss_sum / seen
+            print_metrics(epoch, metrics)
 
-            if stopper.step(acc, net, epoch):
+            if stopper.step(metrics, net, epoch):
                 print(f"Early stopping triggered at epoch {epoch + 1}. Restoring best model from epoch {stopper.best_epoch + 1}.")
                 stopper.restore(net)
+                print_metrics(stopper.best_epoch, stopper.best_metrics)
                 break
-    
+
     def test(self, net: nn.Module, LossCalc: MultiTaskLoss | None = None) -> dict:
         net.eval()
         correct = 0
@@ -95,6 +93,6 @@ class MultiTaskTrainer:
         result['top1_acc'] = 100.0 * correct / total
         result['rmse'] = np.sqrt(sse / (total * 6)) # global RMSE over 6 targets
         if LossCalc is not None:
-            result['loss'] = loss_sum / total
+            result['val_loss'] = loss_sum / total
 
         return result

@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 class EarlyStopping:
-    def __init__(self, mode="min", patience=5, min_delta=0.0, restore_best=True):
+    def __init__(self, mode="min", patience=10, min_delta=0.0, restore_best=True):
         assert mode in ("min", "max")
         self.mode = mode
         self.patience = patience
@@ -10,6 +10,7 @@ class EarlyStopping:
 
         self.best = None
         self.best_state = None
+        self.best_metrics = None
         self.best_epoch = -1
         self.num_bad_epochs = 0
 
@@ -19,10 +20,12 @@ class EarlyStopping:
         else:
             return current > best + self.min_delta
 
-    def step(self, current_value, model, epoch_idx):
+    def step(self, metrics, model, epoch_idx):
+        current_value = metrics['val_loss']
         if self.best is None or self._is_better(current_value, self.best):
             self.best = current_value
             self.best_state = deepcopy(model.state_dict())
+            self.best_metrics = metrics.copy()
             self.best_epoch = epoch_idx
             self.num_bad_epochs = 0
             return False  # do not stop
