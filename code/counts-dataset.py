@@ -3,7 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 DEFAULT_AUG = {
     "p_hflip": 0.5,
     "p_vflip": 0.5,
-    "p_rot90": 0.75  # probability to apply a non-zero 90° rotation
+    "p_rot90": 0.75  # probability to apply a 90° rotation at least once
 }
 
 class CountsDataset(Dataset):
@@ -43,7 +43,7 @@ class CountsDataset(Dataset):
         H, W = self.img_size
 
         # Allocate tensors
-        self.images = torch.empty((n, H * W), dtype=torch.float32)
+        self.images = torch.empty((n, 1, H, W), dtype=torch.float32)
         self.counts = torch.empty((n, 6), dtype=torch.float32)
         self.names = []
 
@@ -54,9 +54,9 @@ class CountsDataset(Dataset):
             if img.size != (W, H):
                 img = img.resize((W, H), Image.NEAREST)
 
-            arr = np.asarray(img, dtype=np.uint8, copy=True).reshape(-1)  # (784,)
+            arr = np.asarray(img, dtype=np.uint8, copy=True) # (H, W)
             arr = (arr > 128).astype(np.float32)
-            self.images[i] = torch.from_numpy(arr)
+            self.images[i] = torch.from_numpy(arr).unsqueeze(0) # (1, H, W)
             self.counts[i] = torch.tensor([int(row[c]) for c in self.label_cols], dtype=torch.float32)
             self.names.append(row['name'])
 
