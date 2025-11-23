@@ -67,7 +67,7 @@ class MultiTaskTrainer:
 
         print(f"Restoring best model from epoch {stopper.best_epoch + 1}.")
         stopper.restore(net)
-        print_metrics(stopper.best_epoch, stopper.best_metrics)
+        print_metrics(stopper.best_epoch, stopper.best_metrics, pair_acc=True)
 
     def test(self, net: nn.Module, LossCalc: MultiTaskLoss) -> dict:
         net.eval()
@@ -103,6 +103,7 @@ class MultiTaskTrainer:
             'rmse': np.sqrt(sse / (total * 6)),
             'mae': abs_err_sum / (total * 6),
             'val_loss': loss_sum / total,
+            'pair_acc_matrix': pair_accuracy_matrix(cm)
         }
 
         return result
