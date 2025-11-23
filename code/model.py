@@ -1,5 +1,5 @@
 class MultiTaskNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, drop_cls=0.3, drop_cnt=0.3):
         super().__init__()
         self.backbone = nn.Sequential(
             nn.Conv2d(1, 8, 3, stride=1, padding=1), nn.ReLU(),
@@ -10,10 +10,16 @@ class MultiTaskNetwork(nn.Module):
             nn.Linear(64 * 28 * 28, 256), nn.ReLU()
         )
         self.head_cls = nn.Sequential(
+            nn.Linear(256, 256), nn.ReLU(),
+            nn.Dropout(drop_cls),
             nn.Linear(256, 135),
-            nn.LogSoftmax(dim=-1)
+            nn.LogSoftmax(dim=-1),
         )
-        self.head_cnt = nn.Linear(256, 6)
+        self.head_cnt = nn.Sequential(
+            nn.Linear(256, 256), nn.ReLU(),
+            nn.Dropout(drop_cnt),
+            nn.Linear(256, 6),
+        )
 
     def forward(self, x: Tensor):
         """
